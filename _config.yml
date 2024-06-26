@@ -1,3 +1,6 @@
 theme: minima
-title: Some Useful Things
+title: Tinkering With Tech (and Maybe More)
 author: Mikaël Francoeur
+
+exclude:
+  - wip
