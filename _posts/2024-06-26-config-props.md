@@ -19,7 +19,8 @@ had both these requirements come up over the last years, first to run queries us
 different [workload prioritization](https://enterprise.docs.scylladb.com/stable/using-scylla/workload-prioritization.html) levels in
 SyllaDB, which requires different users, and second split reads and writes to an RDBMS, sending writes to the writer, and reads to read
 replicas. The problem you get when you try to implement this is that your complete configuration needs to be duplicated for each
-user/endpoint variation:
+user/endpoint variation. Let's say you have a database with a writer endpoint, a reader endoint, and an analytics user that has different
+privileges:
 
 ```yaml
 # writer datasource
@@ -41,8 +42,7 @@ datasources:
 Here, the username and passwords are duplicated, meaning if I change one of them, I have to remember to update the other. But more
 importantly in my opinion, it also obscures the intent. It is now harder to see that the reader has the exact same configuration as the
 writer, except for its url. Code should scream its intent at you, you shouldn't need to decipher it. And configuration is code. So let's
-improve this. In the next paragraphs, we're going to transform the configuration above to just the code block below. There is still a little
-duplication because both urls are similar, and it could still be reduced, but I'll leave this as an exercise to the reader.
+improve this. In the next paragraphs, we're going to transform the configuration above to the code block below.
 
 ```yaml
 spring:
@@ -215,11 +215,43 @@ We saw how to apply this pattern to data sources, but it can also be useful for 
 share a common base, like HTTP connection factories and messaging brokers. This pattern is also flexible in regard to the layout of
 properties. I chose to retain the default `spring.datasource` prefix for the common properties, but it would also have been possible to have
 a `custom.datasources.common` prefix, which would have mirrored `custom.datasources.reader` and `custom.datasources.writer` nicely. All that
-is required for this is an additional `@ConfigurationProperties(prefix = "custom.datasources.common")` on the prototype bean. Finally, I
-picked a simple example, with only 3 properties and 2 sets of overrides. This pattern really shines with more complex setups, where you
-might have many properties and many overrides.
+is required for this is an additional `@ConfigurationProperties(prefix = "custom.datasources.common")` on the prototype bean.
 
-I hope this pattern can help make your configuration code more expressive and reduce duplication. Happy coding!
+Finally, I picked a simple example, with only 3 properties and 2 sets of overrides. This pattern really shines with more complex setups,
+where you might have many properties and many overrides. For example, below is a configuration for a service that had 3 datasources with
+non-trivial configuration, to query a single SyllaDB database using 3 users attached to different workload prioritization levels:
+
+```yaml
+scylla:
+  cluster:
+    hosts: host1,host2,host3
+    datacenter: datacenter1
+    keyspace: objects
+    port: 9042
+  min-healthy-nodes: 1
+  config:
+    request-consistency: LOCAL_ONE
+    request-timeout: 3
+    tracing:
+      enabled: true
+  datasources:
+    critical-priority:
+      username: critical-priority-username
+      password: critical-priority-password
+    medium-priority:
+      username: medium-priority-username
+      password: medium-priority-password
+      config:
+        request-timeout: 15s
+    low-priority:
+      username: low-priority-username
+      password: low-priority-password
+      config:
+        request-timeout: 60s
+```
+
+In conclusion, I hope this pattern can help make your configuration code more expressive and reduce cognitive overhead associated with
+duplication. Happy coding!
 
 ---
 
