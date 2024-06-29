@@ -147,7 +147,7 @@ pwa:
 paginate: 10
 
 # The base URL of your site
-baseurl: "/chirpy-test"
+baseurl: "/blog"
 
 # ------------ The following options are not recommended to be modified ------------------
 
@@ -159,7 +159,7 @@ kramdown:
     # default_lang: console
     span:
       line_numbers: false
-    block:
+    block:π
       line_numbers: true
       start_line: 1
 
