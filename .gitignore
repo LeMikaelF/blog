@@ -39,5 +39,4 @@ Thumbs.db
 # Custom
 wip/**
 _site/**
-Gemfile
 Gemfile.lock
