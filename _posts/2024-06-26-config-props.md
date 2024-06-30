@@ -1,5 +1,5 @@
 ---
-title: "How to merge Configuration Properties in Spring Boot"
+title: "How to merge hierarchical Configuration Properties in Spring Boot"
 date: 2024-06-26
 tags:
   - spring
@@ -19,8 +19,7 @@ had both these requirements come up over the last years, first to run queries us
 different [workload prioritization](https://enterprise.docs.scylladb.com/stable/using-scylla/workload-prioritization.html) levels in
 SyllaDB, which requires different users, and second split reads and writes to an RDBMS, sending writes to the writer, and reads to read
 replicas. The problem you get when you try to implement this is that your complete configuration needs to be duplicated for each
-user/endpoint variation. Let's say you have a database with a writer endpoint, a reader endoint, and an analytics user that has different
-privileges:
+user/endpoint variation:
 
 ```yaml
 # writer datasource
