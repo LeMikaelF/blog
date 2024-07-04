@@ -261,6 +261,8 @@ Here, using the shared+overrides pattern results in configuration that is expres
 In conclusion, I hope this pattern can help make your configuration code more expressive and reduce the cognitive overhead associated with
 configuration duplication. Happy coding!
 
+_The code from this post is [available on Github](https://github.com/LeMikaelF/config-props-merging-demo/blob/main/src/test/java/com/mikaelfrancoeur/springpropertymerging/MergingTest.java)._
+
 ---
 
 [^1]: Spring Boot first searches for the `@ConfigurationProperties` annotation on the factory method (the `@Bean` method), then on the type, and finally on the superclasses and interfaces. This allows factory methods to override type annotations, and subclasses to override superclasses/interfaces. See [`ConfigurationPropertiesBean::findAnnotation`](https://github.com/spring-projects/spring-boot/blob/main/spring-boot-project/spring-boot/src/main/java/org/springframework/boot/context/properties/ConfigurationPropertiesBean.java#L256).
