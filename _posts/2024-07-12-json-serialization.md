@@ -402,7 +402,7 @@ _The code from this article and a test suite can be found [here](https://github.
 -----
 
 [//]: # (@formatter:off)
-[^1]: JsonPath also supports filters, projections, array slices, and recursive addressing. Read more about it [here](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html).
+[^1]: JsonPath also supports filters, projections, array slices, recursive addressing, and more. Read more about it [here](https://support.smartbear.com/alertsite/docs/monitors/api/endpoint/jsonpath.html).
 [^2]: Spring Kafka and Spring Cloud use a slightly different `HandlerMethodArgumentResolver` interface, this one from the Spring Messaging project.
 
 [//]: # (@formatter:on)
