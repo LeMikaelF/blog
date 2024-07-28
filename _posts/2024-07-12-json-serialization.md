@@ -26,8 +26,9 @@ as a way of simplifying JSON retrieval. Finally, I will build on this solution t
 and Spring's extension points to solve the pain points that the first pattern brings. This will also give us an opportunity to explore
 reflection and data binding in Spring.
 
-As an example of a complex nested API, I'll use [Cloudtrail log files](https://docs.aws.amazon.
-com/AWSEC2/latest/UserGuide/monitor-with-cloudtrail.html), which contain a wealth of information. For this article, we'll pretend that we're
+As an example of a complex nested API, I'll
+use [Cloudtrail log files](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/monitor-with-cloudtrail.html), which contain a wealth of
+information. For this article, we'll pretend that we're
 consuming this API, but we're only interested in knowing who (the username)
 terminated which EC2 instances (the instance ids), and at what time (the event's timestamp). Here is an abbreviated typical Cloudtrail log:
 
