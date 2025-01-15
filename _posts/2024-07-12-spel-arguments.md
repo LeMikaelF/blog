@@ -30,8 +30,8 @@ place." [^1] Fortunately for us, our legacy system is built using Spring, so we 
 advised code when declaring new aspects.
 
 This screams "cross-cutting concern": something that is scattered throughout the code base, with one unique action applying to many methods.
-And cross-cutting concerns is just the use case for aspect-oriented programming. Some Spring projects use this liberally. Think of Spring
-Cache. It has a single caching logic, but it can vary its cache names, be applied throughout the code base, and deal with nested types:
+And cross-cutting concerns is just the use case for aspect-oriented programming. Think of the Spring Framework's caching support. It has a
+single caching logic, but it can vary its cache names, be applied throughout the code base, and deal with nested types:
 
 ```java
 public record MyPojo(Nested nested) {
