@@ -244,7 +244,7 @@ out a node, we actually have to copy everything up to from that node. It helps t
 replace node D, we also have to "tell" node B that its left child is now D′, and repeat the process for node A. And since nodes are
 immutable, we need to replace them with a copy that contains the updated children.
 
-![image showing the process of replacing a node in a tree](/assets/img/replacing a node in an immutable tree.jpg)
+![image showing the process of replacing a node in a tree](/img/replacing a node in an immutable tree.jpg)
 
 One limitation of doing this with SpEL nodes is that some node types, like `Assign`, which represents the
 SpEL [assignment operator](https://docs.spring.io/spring-framework/reference/core/expressions/language-ref/operators.html#expressions-assignment),
