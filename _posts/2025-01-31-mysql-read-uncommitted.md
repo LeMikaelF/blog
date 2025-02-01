@@ -16,8 +16,7 @@ in the documentation, but a few authoritative sources are more explicit:
 
 [//]: # (@formatter:off)
 > Within a single statement, transactional inconsistencies may be seen from one record to the next, because no record is ever reverted to a
-> previous version [by using MVCC] during a read (Jeremy Cole, "[The Basics of the InnoDB Undo Logging and History System](https://blog.
-> jcole.us/2014/04/16/the-basics-of-the-innodb-undo-logging-and-history-system/)").
+> previous version [by using MVCC] during a read (Jeremy Cole, "[The Basics of the InnoDB Undo Logging and History System](https://blog.jcole.us/2014/04/16/the-basics-of-the-innodb-undo-logging-and-history-system/)").
 
 > READ UNCOMMITTED isolation mode means InnoDB never needs to go and examine the older row versions – the last row version is always the
 > correct one (Peter Zaitsev, "[MySQL performance implications of InnoDB isolation modes](https://www.percona.com/blog/mysql-performance-implications-of-innodb-isolation-modes/)").
