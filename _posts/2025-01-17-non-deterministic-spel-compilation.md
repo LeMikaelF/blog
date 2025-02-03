@@ -22,25 +22,26 @@ operators is compilable, unfortunately making the SpEL compiler unreliable for c
 logging filters.
 
 In this article, we will discuss this limitation, and see how we can address it by patching the SpEL runtime. In the process, we will learn
-about the internals of SpEL. Finally, we will briefly discuss an application of this in a Logback logging filter.
+about the internals of SpEL. We will then discuss an application of this in a Logback logging filter. Finally, we will see a potential
+solution to the root cause of this issue.
 
 ## The SpEL compiler
 
-By default, SpEL compilation is disabled, and expressions will run in interpreted mode. We can enable compilation either for a specific
-`SpelExpression`, by setting `CompilerMode.IMMEDIATE` or `CompilerMode.MIXED` on the parser's configuration, or globally, by setting
+By default, SpEL compilation is disabled, and expressions run in interpreted mode. We can enable compilation either for a specific
+`SpelExpression` by setting `CompilerMode.IMMEDIATE` or `CompilerMode.MIXED` on the parser's configuration, or globally, by setting
 the `spring.expression.compiler.mode` property to `immediate`
-or `mixed` ([documentation](https://docs.spring.io/spring-framework/reference/core/expressions/evaluation.html#expressions-compiler-configuration)).
+or `mixed` ([docs](https://docs.spring.io/spring-framework/reference/core/expressions/evaluation. html#expressions-compiler-configuration)).
 Under `immediate`, an expression will run in interpreted mode the first time around, and will then run in compiled mode from then on, given
 that the expression is compilable
-(more on that later). Under `mixed`, a given expression will run in interpreted mode, and after a number of iterations (currently
-[100](https://github.com/spring-projects/spring-framework/blob/main/spring-expression/src/main/java/org/springframework/expression/spel/standard/SpelExpression.java#L54)),
-it will be compiled and start running in compiled mode. `mixed` therefore acts as a sort of JIT compiler, optimizing only the expressions 
+(more on that later). Under `mixed`, a given expression will run in interpreted mode, and after a number of
+iterations ([currently 100](https://github.com/spring-projects/spring-framework/blob/main/spring-expression/src/main/java/org/springframework/expression/spel/standard/SpelExpression.java#L54)),
+it will be compiled and start running in compiled mode. `mixed` therefore acts as a sort of JIT compiler, optimizing only the expressions
 that run often.
 
-The `immediate` and `mixed` modes also have different error handling characteristics. If a compiled expression fails under `immediate`, the 
-exception will be propagated to the caller, and the next invocation will retry to run the compiled expression. Under `mixed`, if a compiled
-expression fails, the exception is swallowed, the compiled classes are discarded, and the expression reverts to interpreted, until it 
-becomes eligible for compilation again (after another 100 invocations). 
+The `immediate` and `mixed` modes also have different error handling characteristics. If a compiled expression fails under `immediate`, the
+exception will be propagated to the caller, and the next invocation will still use the compiled expression. Under `mixed`, if a compiled
+expression fails, the exception is swallowed, the compiled classes are discarded, and the expression reverts to interpreted, until it
+becomes eligible for compilation again (after another 100 invocations).
 
 Only a subset of SpEL is compilable. For instance, expressions using assignment, bean references, or collection projections
 are [not compilable](https://docs.spring.io/spring-framework/reference/core/expressions/evaluation.html#expressions-compiler-limitations).
@@ -51,9 +52,8 @@ But the most important limitation, in my opinion, is due to the way the compiler
 > during the first interpreted evaluation, it finds out what it is.
 
 In other words, some SpEL Abstract Syntax Tree ([AST](https://en.wikipedia.org/wiki/Abstract_syntax_tree)) nodes are only compilable if they
-have been previously executed in interpreted mode, and if all of their children nodes have also been evaluated. This is a problem for the
-`and`
-and `or` boolean operators, since they don't always evaluate both of their operands.[^1] Take the following expressions:
+have been previously executed in interpreted mode, or if all of their children nodes have been evaluated. This is a problem for the
+`and` and `or` boolean operators, since they don't always evaluate both of their operands. Take the following expressions:
 
 ```
 true and true   // left and right side are evaluated
@@ -99,9 +99,9 @@ public record ExpressionRoot(boolean left, boolean right) {
 }
 ```
 
-If we run this test again with a `new ExpressionRoot(true, true)` evaluation context, we'll see that the expression _does_ compile after we
-evaluate the expression. The difference depends only on short-circuiting behaviour of the `and` operator. This short-circuiting behaviour is
-not unique to boolean operators: ternary operators, and even the "null-safe index operator" (`.?`) are also affected.
+If we run this test again with a `new ExpressionRoot(true, true)` evaluation context, we'll see that this time, the expression _does_
+compile after we evaluate it. The difference depends only on short-circuiting behaviour of the `and` operator. This short-circuiting
+behaviour is not unique to boolean operators: ternary operators, and even the "null-safe index operator" (`.?`) are also affected.
 
 This is problematic, because it means that **as soon as you have any boolean operators, ternary operators, or null-safe operators (`?.`) in
 a SpEL expression, its compilability is non-deterministic**. Consider this expression:
@@ -113,7 +113,7 @@ T(java.util.concurrent.ThreadLocalRandom).current().nextBoolean() && right
 Is it compilable? Depends on what `nextBoolean()` evaluated to in the "training runs". But what if we need the expression to compile,
 because we can't afford to pay the performance cost of interpreted mode? Well, we might just have to get creative...
 
-## Making SpEL compilation deterministic
+## The Solution
 
 A possible solution to this is to ensure that there are no short-circuiting operators in the expressions. Unfortunarely, this would mean
 significantly restricting the language.
@@ -173,7 +173,8 @@ all the heavy lifting to the regular `SpelExpressionParser`:
 @RequiredArgsConstructor
 public class CustomSpelExpressionParser extends SpelExpressionParser {
 
-  private final SpelParserConfiguration configuration = new SpelParserConfiguration(SpelCompilerMode.IMMEDIATE, null);
+  private final SpelParserConfiguration configuration =
+    new SpelParserConfiguration(SpelCompilerMode.IMMEDIATE, null);
   private final SpelExpressionParser delegate = new SpelExpressionParser(configuration);
 
   @Override
@@ -215,7 +216,7 @@ public class OpAnd extends Operator {
 ```
 
 `OpOr` and `Ternary` do pretty much the same thing, so from now on, we'll only worry about `OpAnd`. Already, we can see that the boolean
-ASTs are nothing special. Actually, they are a bit special, since they do know how generate bytecode equivalent to their `getValueInternal`
+ASTs are nothing special. Actually, they are a bit special, since they know how to generate bytecode equivalent to their `getValueInternal`
 method to compile themselves, but we don't have to worry about that.[^4] The good thing is, as long as we force the expressions to run in
 compiled mode right from the second evaluation by setting `CompilerMode.IMMEDIATE` on the expression, they will use the default behaviour,
 and we don't have any work to do!
@@ -223,7 +224,8 @@ and we don't have any work to do!
 ```java
 class NonShortCircuitingWhenInterpretedAnd extends OpAnd {
 
-  public NonShortCircuitingWhenInterpretedAnd(int startPos, int endPos, SpelNodeImpl... operands) {
+  public NonShortCircuitingWhenInterpretedAnd(int startPos, int endPos,
+                                              SpelNodeImpl... operands) {
     super(startPos, endPos, operands);
   }
 
@@ -277,15 +279,20 @@ And with this, we can write the rest of our parser:
 
 ```java
 @Override
-public Expression parseExpression(String expressionString, @Nullable ParserContext context) throws ParseException {
-  SpelExpression expression = (SpelExpression) delegate.parseExpression(expressionString, context);
+public Expression parseExpression(String expressionString,
+                                  @Nullable ParserContext context)
+  throws ParseException {
+  SpelExpression expression =
+    (SpelExpression) delegate.parseExpression(expressionString, context);
 
   SpelNode ast = expression.getAST();
 
-  return new SpelExpression(expressionString, transformAst((SpelNodeImpl) ast), configuration);
+  return new SpelExpression(
+    expressionString,
+    transformAst((SpelNodeImpl) ast),
+    configuration
+  );
 }
-
-// ...
 
 public SpelNodeImpl transformAst(SpelNodeImpl root) {
   return switch (root) {
@@ -322,10 +329,12 @@ private SpelNodeImpl[] getChildren(SpelNodeImpl root) {
   }
   return children;
 }
+
+// implementations of the AST nodes...
 ```
 
-Now if we use this parser and run it through the test at the beginning of this article, we'll see that the expression now compiles just
-fine!
+Now if we use this custom parser to run the test at the beginning of this article, we'll see that it now passes, and the expression compiles
+just fine!
 
 ## Applying this to a Logback Filter
 
@@ -337,7 +346,8 @@ demonstrating its usage:
 
 ```xml
 <turboFilter class="com.example.filters.ExpressionBasedLevelConverterFilter">
-  <Expression>
+  <!-- this is a SpEL expression -->
+  <expression>
     level == ERROR
     and
     throwable instanceof T(java.lang.IllegalArgumentException)
@@ -345,15 +355,16 @@ demonstrating its usage:
     throwable.message == 'something specific'
     and
     logger == 'com.example.application.MyService'
-  </Expression>
-  <OnMatch>com.example.filters.ConvertLevelToInfo</OnMatch>
+  </expression>
+  <onMatch>com.example.filters.ConvertLevelToInfo</onMatch>
 </turboFilter>
 ```
 
 Upon initialization, the filter will:
 
 1. parse its expression
-2. evaluate it once using dummy objects to populate the expression variables (`level`, `throwable`, `logger`, and a few others)
+2. evaluate it once using dummy objects to populate the expression variables (`level`, `throwable`, `logger`, and a few others), as a
+   "training run" for the compiler
 3. compile it
 
 If the expression is not compilable, the filter will throw an exception to prevent running the interpreted expression on a critical code
@@ -364,38 +375,39 @@ operators don't short-circuit!
 ## Could we just fix the root cause?
 
 This whole issue with compilability is because the compiler uses the `invokevirtual` bytecode instruction (or _opcode_), which requires the
-type of the receiver at compile time. For example, when the statement `"abc".length()` is compiled using this instruction, the compiled
-class will contain the hardcoded string `java/lang/String.length ()I`.
+type of the receiver at compile time. For example, when the statement `"abc".length()` is compiled using `javac`, the compiled class will
+contain the hardcoded string `java/lang/String.length ()I`.
 
 Java 7 added the [`invokedynamic`](https://blogs.oracle.com/javamagazine/post/understanding-java-method-invocation-with-invokedynamic)
-opcode, aimed at [supporting dynamically typed languages](https://www.oracle.com/technical-resources/articles/javase/dyntypelang.html). I
-suspect that the decision to go with regular `invokevirtual`
-instead of `invokedynamic` may have been because Spring 4, the version when the SpEL compiler was written, only
+opcode, aimed at [supporting dynamically typed languages](https://www.oracle.com/technical-resources/articles/javase/dyntypelang.html). This
+opcode does not require a receiver type, making it suitable for compiling expressions where types are unknown at compile time. I suspect
+that the decision to go with the regular `invokevirtual`
+instead of `invokedynamic`  in the SpEL compiler may have been because Spring 4, the version when the compiler was written, only
 had [Java 6 as a baseline version](https://docs.spring.io/spring-framework/docs/4.3.12.RELEASE/spring-framework-reference/html/new-in-4.0.html).
-But the baseline of Spring 6 is Java 17, so the compiler could possibly be improved to use `invokedynamic`.
+But the baseline of Spring 6 is Java 17, so now the compiler could possibly be improved by using `invokedynamic`.
 
-This also has
-[implications for native images](https://github.com/spring-projects/spring-framework/issues/29548), since if the expressions are compiled at
-build time, the interpreter-specific parts of SpEL don't have to be compiled into the image.
+Expressions could then be compiled even before having been evaluated. This would the issue with compilability that we've been discussing. It
+also has [implications for native images](https://github.com/spring-projects/spring-framework/issues/29548), since if the expressions can be
+compiled at build time, the interpreter-specific parts of SpEL don't even have to be compiled into the image.
 
 ## Conclusion
 
 We started by discussing how SpEL's compiler can lead to notable performance improvements. It does have some limitations, one of which
 causes the compilability of expressions containing certain operators to be non-deterministic. We remediated this by patching the AST nodes
 corresponding to the boolean and ternary operators. Finally, we introduced a concrete application of this by introducing a Logback filter
-based on SpEL expressions.
+based on SpEL expressions, and we discussed a potential solution to the compilability problem.
 
-This pattern of modifying the AST of a SpEL expression can be reused for other purposes. For instance, it is possible to extend the SpEL
-language to add new operators. Since AST nodes contain their index in the expression string, we could support `&` and `|` operators in an
-expression by replacing `&` by `&&` and `|` by `||` and making a note of their position before sending the expression to the parser, then
-walking the AST tree and swapping just these nodes for our custom ones. We could also add boolean operators that evaluate their operands
-concurrently and short-circuit as soon as possible, which would save valuable time if they are blocking calls (ex: two different http
-requests).
+This pattern of modifying the AST of a SpEL expression could be reused for other purposes. For instance, it is possible to extend the SpEL
+language to add new control-flow operators. Since AST nodes contain their index in the expression string, we could support `&` and `|`
+operators in an expression by replacing `&` by `&&` and `|` by `||` and making a note of their position before sending the expression to the
+parser, then walking the AST tree and swapping just these nodes for our custom ones. We could also add boolean operators that evaluate their
+operands concurrently and short-circuit as soon as possible, which would save valuable time when the operands are blocking calls (ex: two
+different http requests).
 
-In the logback filter we introduced, the non-short-circuiting behaviour is only present in the initial "training" run, and it uses dummy
-arguments, not real application data. I suspect that there are other cases that can work with the same pattern. It is important however not
-to expose this non-short-circuiting behaviour where it might interfere with the application at runtime, since users could rely on
-short-circuiting, for example by using the common idiom `a != null && a.b()`.
+One last note. In the logback filter we introduced, the non-short-circuiting behaviour is only present in the initial "training" run, and it
+uses dummy arguments, not real application data. I suspect that there are other cases that can work with the same pattern. It is important
+however not to expose this non-short-circuiting behaviour where it might interfere with the application at runtime, since users could rely
+on short-circuiting, for example by using the common idiom `a != null && a.b()`.
 
 _The code from this article can be found [here](https://github.com/LeMikaelF/spel-non-deterministic-compilation)._
 
