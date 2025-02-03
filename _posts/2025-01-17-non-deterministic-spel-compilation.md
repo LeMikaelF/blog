@@ -6,7 +6,6 @@ tags:
   - spel
 categories:
   - Spring
-hidden: true
 ---
 
 The Spring Expression Language (SpEL) is an expressive language that is typically used for computing simple expressions. To provide better
