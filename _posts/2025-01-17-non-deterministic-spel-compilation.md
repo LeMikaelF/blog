@@ -34,7 +34,13 @@ Under `immediate`, an expression will run in interpreted mode the first time aro
 that the expression is compilable
 (more on that later). Under `mixed`, a given expression will run in interpreted mode, and after a number of iterations (currently
 [100](https://github.com/spring-projects/spring-framework/blob/main/spring-expression/src/main/java/org/springframework/expression/spel/standard/SpelExpression.java#L54)),
-it will be compiled and start running in compiled mode.
+it will be compiled and start running in compiled mode. `mixed` therefore acts as a sort of JIT compiler, optimizing only the expressions 
+that run often.
+
+The `immediate` and `mixed` modes also have different error handling characteristics. If a compiled expression fails under `immediate`, the 
+exception will be propagated to the caller, and the next invocation will retry to run the compiled expression. Under `mixed`, if a compiled
+expression fails, the exception is swallowed, the compiled classes are discarded, and the expression reverts to interpreted, until it 
+becomes eligible for compilation again (after another 100 invocations). 
 
 Only a subset of SpEL is compilable. For instance, expressions using assignment, bean references, or collection projections
 are [not compilable](https://docs.spring.io/spring-framework/reference/core/expressions/evaluation.html#expressions-compiler-limitations).
@@ -62,7 +68,6 @@ no longer know the type of the operands before evaluating them, and therefore it
 operands are themselves compilable expressions. The following test reproduces this issue:
 
 ```java
-
 @Test
 void unCompilableExpression() {
   // declare and parse an expression
@@ -165,12 +170,10 @@ delegate invocations to. So we'll kind of write a parser, in the sense that we'l
 all the heavy lifting to the regular `SpelExpressionParser`:
 
 ```java
-
 @RequiredArgsConstructor
 public class CustomSpelExpressionParser extends SpelExpressionParser {
 
-  // TODO set CompilerMode to IMMEDIATE
-  private final SpelParserConfiguration configuration = new SpelParserConfiguration();
+  private final SpelParserConfiguration configuration = new SpelParserConfiguration(SpelCompilerMode.IMMEDIATE, null);
   private final SpelExpressionParser delegate = new SpelExpressionParser(configuration);
 
   @Override
@@ -210,8 +213,6 @@ public class OpAnd extends Operator {
   // ...
 }
 ```
-
-[//]: # (TODO say that we need to set CompilerMode.IMMEDIATE)
 
 `OpOr` and `Ternary` do pretty much the same thing, so from now on, we'll only worry about `OpAnd`. Already, we can see that the boolean
 ASTs are nothing special. Actually, they are a bit special, since they do know how generate bytecode equivalent to their `getValueInternal`
@@ -275,7 +276,6 @@ expressions in SpEL are usually used directly.
 And with this, we can write the rest of our parser:
 
 ```java
-
 @Override
 public Expression parseExpression(String expressionString, @Nullable ParserContext context) throws ParseException {
   SpelExpression expression = (SpelExpression) delegate.parseExpression(expressionString, context);
@@ -336,7 +336,6 @@ dedicating a separate article to this filter, because it came with interesting c
 demonstrating its usage:
 
 ```xml
-
 <turboFilter class="com.example.filters.ExpressionBasedLevelConverterFilter">
   <Expression>
     level == ERROR
