@@ -5,6 +5,7 @@ tags:
   - mysql
 categories:
   - MySQL
+hidden: true
 ---
 
 An important part of transactions in databases in that they can be isolated from one another to prevent race conditions, or _read
