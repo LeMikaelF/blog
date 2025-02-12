@@ -5,7 +5,6 @@ tags:
   - mysql
 categories:
   - MySQL
-hidden: true
 ---
 
 An important part of transactions in databases is that they can be isolated from one another to prevent race conditions, or _read
@@ -136,6 +135,8 @@ private interface ThrowingCallback<T> extends TransactionCallback<T> {
 Now, let's build the loop and test harness:
 
 ```java
+final int NUM_EXPECTED_DEADLOCKS = 1;
+
 @Test
 @SneakyThrows
 void testIsolation() {
