@@ -8,7 +8,7 @@ categories:
 hidden: true
 ---
 
-An important part of transactions in databases in that they can be isolated from one another to prevent race conditions, or _read
+An important part of transactions in databases is that they can be isolated from one another to prevent race conditions, or _read
 phenomena_. These phenomena are commonly identified using the SQL 92 terminology: phantom reads, non-repeatable reads, and dirty reads. In
 most databases, we decide on the balance between performance and isolation by specifying one of four transaction isolation levels: READ
 UNCOMMITTED, READ COMMITTED, REPEATABLE READ, and SERIALIZABLE.
