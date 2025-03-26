@@ -1,10 +1,11 @@
 ---
 title: "Pitfalls of MySQL's READ UNCOMMITTED"
-date: 2025-02-7
+date: 2025-03-25
 tags:
   - mysql
 categories:
   - MySQL
+#hidden: true
 ---
 
 _In this article, I discuss a quirk in MySQL's `READ UNCOMMITTED` that can lead to surprising behaviour._
@@ -13,8 +14,7 @@ Consider the following table:
 
 [//]: # (@formatter:off)
 ```sql
-create table t
-(
+create table t (
   n int primary key
 );
 
@@ -45,24 +45,25 @@ from t; -- 14
 ```
 [//]: # (@formatter:on)
 
-From the point of view of session `A`, session `B` inserted 4 rows into table `t`, even though all it did was update existing rows! To
-reproduce this, I built a [test harness](https://github.com/LeMikaelF/mysql-non-consistent-read-test) that races two transactions until it
-finds an issue. And for this scenario, it takes anywhere between 500 and 4000 runs to produce an invalid count.
+From the point of view of session `A`, session `B` inserted 4 rows into table `t`, even though all it did was update existing rows!
+
+To reproduce this, I built a [test harness](https://github.com/LeMikaelF/mysql-non-consistent-read-test) that races two transactions until
+it finds an issue. It takes anywhere between 500 and 4000 runs to produce an invalid count.
 
 Similar effects can be obtained with variations of this transaction. For example, issuing a `select * from t` as the last statement from
 session `A` will show that it reads both old and new versions of the rows updated by session `B`.
 
 ## A variation
 
-In fact, a similar issue is easy to reproduce manually as long as the table has an auto-generated primary key. If the primary key is not
+In fact, a similar issue is easy to reproduce manually as long as the table has
+an [auto-generated primary key](https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html). If the primary key is not
 auto-generated, meaning either it is specified explicitly (like above), or the table contains a `UNIQUE NOT NULL` index, the issue is still
-reproducible using the test harness linked above, but I wasn't able to reproduce it manually, since the timing constraints seem to be much
-stronger.
+reproducible using the test harness linked above, but I wasn't able to reproduce it manually, since the timing constraints seem to be a lot
+stricter.
 
 [//]: # (@formatter:off)
 ```sql
-create table 
-(
+create table (
   n int
 )
 
@@ -74,10 +75,9 @@ set session
 -- we can slow down session A's table scan
 select *, sleep(1)
 from t;
-
--- session B, while session A is working
-update t
-set n = 1000;
+                                             -- session B, while session A is working
+                                             update t
+                                             set n = 1000;
 ```
 [//]: # (@formatter:on)
 
@@ -104,10 +104,10 @@ storage engine uses [undo logs](https://dev.mysql.com/doc/refman/8.4/en/innodb-u
 in a text editor to "undo" concurrent changes. MySQL is therefore able to present the viewer with a "concurrent" read, where each row
 belongs to the same snapshot.[^1]
 
-InnoDB optimistically writes (or overwrites) data directly in the clustered index, even before it commits, in addition to leaving an undo
-log record that can be used in case of a rollback or during crash recovery. This means that commits are basically free, whereas rollbacks
-require reconstructing the old row and writing it in the clustered index. This makes sense under the assumption that most transactions end
-up commiting, and that rollbacks are relatively rare.
+During a transaction, InnoDB optimistically writes (or overwrites) data directly in the clustered index, even before it commits, in addition
+to leaving an undo log record that can be used in case of a rollback or during crash recovery. This means that commits are basically free,
+whereas rollbacks require reconstructing the old row and writing it in the clustered index. This makes sense under the assumption that most
+transactions end up commiting, and that rollbacks are relatively rare.
 
 Because of this, a transaction that does not use MVCC will see uncommitted data, but its reads will also be non-consistent. Here is a
 representation of the steps that could lead to the anomalous `count(*)` discussed above, with a 3-row table for simplicity:
@@ -135,36 +135,41 @@ how InnoDB does MVCC, it seems reasonable.
 ## Some confusion in the documentation
 
 The fact that reads in `READ UNCOMMITTED` are not consistent is
-indeed [documentated](https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html#isolevel_read-uncommitted), but the
+indeed [documented](https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html#isolevel_read-uncommitted), but the
 relevant paragraph seems off to me:
 
 > SELECT statements are performed in a nonlocking fashion, but a possible earlier version of a row might be used. Thus, using this isolation
 > level, such reads are not consistent. This is also called a dirty read. Otherwise, this isolation level works like READ COMMITTED.
 
-First, a "possible earlier version of a row" might definitely not be used, that's exactly the point of not using MVCC, that undo logs cannot
+First, a "possible earlier version of a row" might definitely not be used, contrary to what the documentation says. That's exactly the point
+of not using MVCC, that undo logs cannot
 be used to provide consistent snapshots by reconstructing previous versions of a row. This statement is even directly contradicted by
 the [source code](https://github.com/mysql/mysql-server/blob/trunk/storage/innobase/include/trx0trx.h#L678).
 
 Second, there seems to be some confusion in the documentation between dirty reads and consistent reads. Dirty reads are not non-consistent
-reads, as the paragraph above and the [glossary](https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_dirty_read) suggest. Dirty reads
-are when a transaction reads uncommitted data from another transaction. The read phenomena are famously ill-defined in SQL-92, but both in
-the SQL standard and in [Adya's formalization of read phenomena](https://pmg.csail.mit.edu/papers/icde00.pdf) (or _read anomalies_), dirty
-reads are not connected to consistent reads.
+reads, unlike what the paragraph above and [MySQL's glossary](https://dev.mysql.com/doc/refman/8.4/en/glossary.html#glos_dirty_read)
+suggest. Dirty reads are when a transaction reads uncommitted data from another transaction. Read phenomena (dirty read, non-repeatable
+read, and phantom read) are famously ill-defined in SQL-92, but both in the SQL standard and
+in [Adya's formalization of read phenomena](https://pmg.csail.mit.edu/papers/icde00.pdf) (or _read anomalies_), dirty reads are not related
+to consistent reads.
 
 ## A possible improvement to READ UNCOMMITTED
 
 InnoDB could have chosen to allow dirty reads, but disallow non-consistent reads. Consistents reads are implemented by a class named
-`ReadView`, and that keeps a list [`m_ids`](https://github.com/mysql/mysql-server/blob/trunk/storage/innobase/include/read0types.h#L297) of
+`ReadView` and that keeps a list [`m_ids`](https://github.com/mysql/mysql-server/blob/trunk/storage/innobase/include/read0types.h#L297) of
 the transactions that were active when the `ReadView` was created. This list is used to decide which changes are "invisible" to the current
 transaction. Ignoring this list in [
-`changes_visible(trx_id_t, table_name_t)`](https://github.com/mysql/mysql-server/blob/trunk/storage/innobase/include/read0types.h#L297)
-and otherwise keeping the behaviour from `READ COMMITTED` (i.e. using MVCC) would both allow dirty reads, as required by the SQL standard,
+`changes_visible(trx_id_t, table_name_t)`](https://github.com/mysql/mysql-server/blob/trunk/storage/innobase/include/read0types.h#L297), and
+otherwise keeping the behaviour from `READ COMMITTED` (i.e. using MVCC), would both allow dirty reads, as required by the SQL standard,
 and provide consistent reads.
 
 This would result in a much more predictable and less dangerous behaviour, but using MVCC is slower, and `READ UNCOMMITTED` could be seen as
-a useful escape hatch for [very marginal use cases](https://www.percona.com/blog/mysql-performance-implications-of-innodb-isolation-modes/)
-where very intensive non-key updates prevent long-running statements from completing. For this reason, consistent reads could be conditional
-to a [system variable](https://dev.mysql.com/doc/refman/8.4/en/using-system-variables.html), similar to what MariaDB did when
+a useful escape hatch
+for [marginal](https://www.percona.com/blog/innodbs-multi-versioning-handling-can-be-achilles-heel/) [use cases](https://www.percona.com/blog/mysql-performance-implications-of-innodb-isolation-modes/)
+where very intensive non-key updates concurrent to long-running selects on the same rows drastically hinder performance. For this reason, 
+consistent
+reads could be conditional to a [system variable](https://dev.mysql.com/doc/refman/8.4/en/using-system-variables.html), similar to what
+MariaDB did when
 they [changed the behaviour of their
 `REPEATABLE READ`](https://mariadb.com/resources/blog/isolation-level-violation-testing-and-debugging-in-mariadb/).
 
