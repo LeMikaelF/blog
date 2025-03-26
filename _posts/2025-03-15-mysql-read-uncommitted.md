@@ -8,7 +8,8 @@ categories:
 hidden: true
 ---
 
-_In this article, I discuss a quirk in MySQL's `READ UNCOMMITTED` that can lead to surprising behaviour._
+_In this article, I discuss a quirk of `READ UNCOMMITTED` in InnoDB (MySQL's default storage engine) that can lead to surprising behaviour,
+and discuss a possible improvement._
 
 Consider the following table:
 
@@ -202,4 +203,3 @@ fact that this has remained undocumented for so long tells me that this isolatio
 [//]: # (@formatter:off)
 [^1]: Many databases use MVCC, see this [list](https://en.wikipedia.org/wiki/List_of_databases_using_MVCC) on Wikipedia. Some file systems, such as ZFS, also use similar strategies to provide snapshots ([more info](https://www.open-e.com/blog/how-do-zfs-snapshots-really-work/)). 
 [//]: # (@formatter:on)
-
