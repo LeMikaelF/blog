@@ -167,7 +167,7 @@ and provide consistent reads.
 This would result in a much more predictable and less dangerous behaviour, but using MVCC is slower, and `READ UNCOMMITTED` could be seen as
 a useful escape hatch
 for [marginal](https://www.percona.com/blog/innodbs-multi-versioning-handling-can-be-achilles-heel/) [use cases](https://www.percona.com/blog/mysql-performance-implications-of-innodb-isolation-modes/)
-where very intensive non-key updates concurrent to long-running selects on the same rows drastically hinder performance. For this reason, 
+where very intensive non-key updates concurrent to long-running selects on the same rows prohibitively hinder performance. For this reason, 
 consistent
 reads could be conditional to a [system variable](https://dev.mysql.com/doc/refman/8.4/en/using-system-variables.html), similar to what
 MariaDB did when
