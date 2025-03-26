@@ -5,7 +5,7 @@ tags:
   - mysql
 categories:
   - MySQL
-#hidden: true
+hidden: true
 ---
 
 _In this article, I discuss a quirk in MySQL's `READ UNCOMMITTED` that can lead to surprising behaviour._
