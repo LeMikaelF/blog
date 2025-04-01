@@ -39,7 +39,7 @@ select count(*) from t; -- 10
                                      update t
                                      set n = n + 10;
 -- session A, concurrently
--- with the B's UPDATE
+-- with B's UPDATE
 select count(*)
 from t; -- 14 (!)
 ```
@@ -93,7 +93,7 @@ This will return something like this:
 | 1000 | 1        |
 | 1000 | 1        |
 
-In this case, the first 3 rows were scanned before the `UPDATE`, and the last 2 were scanned after.
+In this case, the first 3 rows were scanned before the `UPDATE`, and the last 2 were scanned after.[^2]
 
 ## The culprit: MVCC and non-consistent reads
 
@@ -210,5 +210,6 @@ you're better off staying away from `READ UNCOMMITTED` and sticking with `READ C
 ## Footnotes
 
 [//]: # (@formatter:off)
-[^1]: Many databases use MVCC, see this [list](https://en.wikipedia.org/wiki/List_of_databases_using_MVCC) on Wikipedia. Some file systems, such as ZFS, also use similar strategies to provide snapshots ([more info](https://www.open-e.com/blog/how-do-zfs-snapshots-really-work/)). 
+[^1]: For a more detailed explanation of MVCC in InnoDB, take a look at [this part](https://www.youtube.com/live/-nJrugKKP1w?si=a-NdAyjMDVUOK2e-) of my recent talk at ScALE 22x. Many databases use MVCC, see this [list](https://en.wikipedia.org/wiki/List_of_databases_using_MVCC) on Wikipedia. Some file systems, such as ZFS, also use similar strategies to provide snapshots ([more info](https://www.open-e.com/blog/how-do-zfs-snapshots-really-work/)). 
+[^2]: You can see me demonstrating this effect during my talk at ScALE 22x [here](https://www.youtube.com/live/-nJrugKKP1w?si=o5GUMieUPAu_8ySh&t=27508). 
 [//]: # (@formatter:on)
