@@ -17,6 +17,8 @@ Because of my experience with postmodern philosophy, I was a bit wary when I sta
 
 One thing that stood out in this first part of the book is the number of citations from Donella Meadows, especially [_Thinking in Systems: A Primer_](https://en.wikipedia.org/wiki/Thinking_In_Systems:_A_Primer), and the [Donella Meadows Project](https://donellameadows.org/). These both sound interesting, and I might consider reading them if this book proves to be what it promises.
 
+![book cover](/img/systems-thinking-cover.png)
+
 ## What is Systems Thinking (ST)?
 
 Systems Thinking invites us to "think differently". It is a recognition that, in the "Systems Age", "as software becomes systems of software, we have reached the limits of our traditional ways of thinking." (p. 4) This different way is a departure from "linear thinking": the rational "if this, then that" mode of thinking that we all know and love. Linear thinking is necessary, but it can be a hinderance when reasoning about complex systems, such as the socio-technical systems we build.
