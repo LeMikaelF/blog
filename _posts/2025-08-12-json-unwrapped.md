@@ -1,6 +1,6 @@
 ---
 title: "@JsonUnwrapped, the unsung hero"
-date: 2025-08-12
+date: 2025-08-25
 tags:
   - java
   - jackson
