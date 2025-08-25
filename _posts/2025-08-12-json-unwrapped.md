@@ -90,7 +90,7 @@ and adding a mapper, here's what we can do:
 
 @GetMapping("/personExternal")
 NoDateOfBirth<Person> getPersonExternal() {
-  return new NoDateOfBirth<>(Persons.popa());
+  return new NoDateOfBirth<>(Persons.dummy());
 }
 
 record NoDateOfBirth<T>(
